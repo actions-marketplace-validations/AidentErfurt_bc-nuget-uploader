@@ -1,0 +1,11 @@
+{
+    "AidentGmbH": {
+      "url": "https://custom.nuget.org/v3/index.json",
+      "token": "NUGETContext"
+    },
+    "Contoso": {
+      "url": "https://nuget.contoso.com/api/v2/package",
+      "token": "CONTOSO_NUGET_TOKEN"
+    }
+  }
+  
