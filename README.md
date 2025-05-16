@@ -23,7 +23,6 @@ Create a workflow in `.github/workflows/upload-apps.yml`:
 
 ```yaml
 name: Process Uploaded .app Files
-
 on:
   push:
     branches: [main]
@@ -103,3 +102,55 @@ This section explains how to upload `.app` files. You do **not** need to write c
 You can monitor the progress under the **Actions** tab in GitHub.
 
 No manual cleanup or publishing steps are required.
+
+# Flow
+
+```mermaid
+ flowchart TD
+    %% ─────────────────────────────
+    %% Upload & Packaging
+    %% ─────────────────────────────
+    subgraph "GitHub Repository"
+        direction TB
+        A["Developer uploads *.app to /upload"] --> B["bc-nuget-uploader (composite action)"]
+    end
+
+    B --> C["New-BcNuGetPackage (PowerShell)"]
+    C --> D["NuGet package (.nupkg)"]
+
+    %% ─────────────────────────────
+    %% Feeds
+    %% ─────────────────────────────
+    subgraph "NuGet Feeds"
+        direction LR
+        F1[GitHub Packages]
+        F2[Azure Artifacts]
+        F3[Other V3 Feed]
+    end
+
+    D --> F1 & F2 & F3
+
+    %% ─────────────────────────────
+    %% Consumers
+    %% ─────────────────────────────
+    subgraph "Consumers"
+        direction TB
+        G["AL-Go for GitHub (Compile / Publish)"]
+        H["BcContainerHelper Publish-BcNuGetPackageToContainer"]
+    end
+
+    F1 & F2 & F3 --> G
+    F1 & F2 & F3 --> H
+
+    %% ─────────────────────────────
+    %% Styling
+    %% ─────────────────────────────
+    classDef pkg       stroke:#ee7402,stroke-width:2px,fill:white;
+    classDef feed      stroke:#4a4a49,stroke-width:2px,fill:white;
+    classDef consumer  stroke:#4a4a49,stroke-width:2px,fill:white;
+    classDef area      background-colour:#ed740240;
+
+    class A,B,C,D pkg;
+    class F1,F2,F3 feed;
+    class G,H consumer;
+```
