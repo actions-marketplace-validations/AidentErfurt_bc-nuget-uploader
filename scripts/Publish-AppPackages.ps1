@@ -26,7 +26,7 @@ $tmpFolder = Join-Path ([System.IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToSt
 New-Item -Path $tmpFolder -ItemType Directory -Force | Out-Null
 
 # Download and import the AL-Go helper script
-$ALGoHelperPath = DownloadHelperFile -url 'https://raw.githubusercontent.com/microsoft/AL-Go-Actions/v7.0/AL-Go-Helper.ps1' -folder $tmpFolder
+$ALGoHelperPath = DownloadHelperFile -url 'https://raw.githubusercontent.com/microsoft/AL-Go-Actions/v7.2/AL-Go-Helper.ps1' -folder $tmpFolder
 . $ALGoHelperPath -local
 DownloadAndImportBcContainerHelper
 
