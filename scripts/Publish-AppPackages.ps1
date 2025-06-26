@@ -78,14 +78,14 @@ foreach ($app in $appFiles) {
 
     # accepts either {url,token} or an array of them
     if ($feedMap.PSObject.Properties.Name -contains $guid) {
-        $entries = $feedMap.$guid
-        if ($entries -is [System.Collections.IEnumerable]) { $entries } else { ,$entries } |
-            ForEach-Object {
-                $destinations += [pscustomobject]@{
-                    Url       = $_.url
-                    TokenName = $_.token
-                }
+        $entries    = $feedMap.$guid
+        $entryList  = @($entries)
+        foreach ($e in $entryList) {
+            $destinations += [pscustomobject]@{
+                Url       = $e.url
+                TokenName = $e.token
             }
+        }
     } else {
         $destinations += [pscustomobject]@{
             Url       = $defaultFeed
