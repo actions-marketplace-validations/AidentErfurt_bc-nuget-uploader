@@ -43,11 +43,11 @@ if (-not [System.IO.Path]::IsPathRooted($rawFeedMapPath)) {
 
 $feeds = @{}
 if (Test-Path $feedMapPath) {
-    Write-Host "ℹ️ Using feed map from $feedMapPath"
+    Write-Host "Using feed map from $feedMapPath"
     $feeds = Get-Content $feedMapPath | ConvertFrom-Json
-    Write-Host "✅ Loaded feed map with $($feeds.Count) entries"
+    Write-Host "Loaded feed map with $($feeds.Count) entries"
 } else {
-    Write-Host "⚠️ Feed map file not found at $feedMapPath — using default GitHub feed"
+    Write-Host "Feed map file not found at $feedMapPath. Using default GitHub feed"
 }
 
 # Find app files
@@ -61,8 +61,6 @@ if ($appFiles.Count -eq 0) {
 foreach ($file in $appFiles) {
     $appfile = $file.FullName
     Write-Host "🔄 Processing file: $appfile"
-    $nupkg = New-BcNuGetPackage -appfile $appfile
-    Write-Host "📦 Created package: $nupkg"
 
     # Get metadata
     $appJson = Get-AppJsonFromAppFile -appFile $appfile
@@ -81,20 +79,20 @@ foreach ($file in $appFiles) {
     }
 
     # Show resolved info
-    Write-Host "📦 Package GUID: $guid"
-    Write-Host "🔐 Using token environment variable: $tokenName"
-    Write-Host "🌍 Upload target feed: $targetFeed"
+    Write-Host "Package GUID: $guid"
+    Write-Host "Using token environment variable: $tokenName"
+    Write-Host "Upload target feed: $targetFeed"
 
     # Get the actual token value
     $token = [Environment]::GetEnvironmentVariable($tokenName)
     if (-not $token) {
-        Write-Host "❌ Token for GUID $guid (`$tokenName = $tokenName) is missing."
+        Write-Host "Token for GUID $guid (`$tokenName = $tokenName) is missing."
         Write-Host "Available environment variables:"
         Get-ChildItem Env:
         throw "Token for GUID $guid (`$tokenName) is missing."
     } else {
-        Write-Host "🔐 Token found: $tokenName"
-        # Write-Host "🔑 Token length: $($token.Length)"
+        Write-Host "Token found: $tokenName"
+        # Write-Host "Token length: $($token.Length)"
     }
 
     # Check if package already exists
@@ -108,25 +106,28 @@ foreach ($file in $appFiles) {
             -allowPrerelease
 
         if ($existing -and (Test-Path $existing)) {
-            Write-Host "⚠️ Package already exists: $packageId $packageVersion — skipping upload"
+            Write-Host "Package already exists: $packageId $packageVersion. Skipping upload"
             continue
         }
     }
     catch {
-        Write-Host "❗ Exception while checking for existing package:"
+        Write-Host "Exception while checking for existing package:"
         Write-Host $_.Exception.Message
         Write-Host $_.Exception.ToString()
-        Write-Host "ℹ️ Proceeding with upload..."
+        Write-Host "Proceeding with upload..."
     }
 
+    $nupkg = New-BcNuGetPackage -appfile $appfile
+    Write-Host "Created package: $nupkg"
+
     # Upload
-    Write-Host "⬆️ Pushing package to $targetFeed"
+    Write-Host "Pushing package to $targetFeed"
     try {
         Push-BcNuGetPackage -nuGetServerUrl $targetFeed -nuGetToken $token -bcNuGetPackage $nupkg
-        Write-Host "✅ Successfully pushed ${nupkg} to ${targetFeed}"
+        Write-Host "Successfully pushed ${nupkg} to ${targetFeed}"
     }
     catch {
-        Write-Error "❌ Failed to push ${nupkg} to ${targetFeed}: $_"
+        Write-Error "Failed to push ${nupkg} to ${targetFeed}: $_"
         throw $_
     }
 }
