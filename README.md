@@ -13,7 +13,6 @@ This action is designed to be reused across repositories and GitHub organization
 - Checks if the package version already exists
 - Pushes the package to the appropriate feed
 - Supports multiple feeds using a GUID-to-feed mapping
-- Optional cleanup of processed `.app` files
 
 ## Usage / Setup Instructions
 
