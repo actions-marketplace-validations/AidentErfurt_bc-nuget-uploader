@@ -28,6 +28,7 @@ on:
     branches: [main]
     paths:
       - 'upload/*.app'
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -44,6 +45,7 @@ jobs:
         uses: AidentErfurt/bc-nuget-uploader@v1
         with:
           feed-map: nuget-feed-map.json
+          fail-on-any-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           MY_NUGET_FEED_TOKEN: ${{ secrets.MY_NUGET_FEED_TOKEN }}  # Token used if GUID matches
@@ -62,6 +64,23 @@ To support multiple external feeds, create a file named `nuget-feed-map.json` in
     "url": "https://your-private-feed/index.json",
     "token": "MY_NUGET_FEED_TOKEN"
   }
+}
+```
+
+Multiple feeds for one app:
+
+```json
+{
+    "b1755fc0-be57-424a-8e0a-8533dc9122d7": [
+      {
+        "url": "https://your-private-feed/index.json",
+        "token": "MY_NUGET_FEED_TOKEN"
+      },
+      {
+        "url": "https://nuget.pkg.github.com/AidentErfurt/index.json",
+        "token": "GITHUB_TOKEN"
+      }
+    ]
 }
 ```
 
@@ -97,7 +116,6 @@ This section explains how to upload `.app` files. You do **not** need to write c
 - It will:
   - Convert your `.app` into a NuGet package.
   - Skip the upload if the package already exists in the feed.
-  - Clean up by deleting the `.app` file from the repository.
 
 You can monitor the progress under the **Actions** tab in GitHub.
 
@@ -154,3 +172,7 @@ No manual cleanup or publishing steps are required.
     class F1,F2,F3 feed;
     class G,H consumer;
 ```
+
+# Licence
+
+© 2025 Aident GmbH. Released under Apache 2.0
