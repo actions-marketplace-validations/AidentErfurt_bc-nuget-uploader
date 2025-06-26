@@ -1,8 +1,7 @@
 # bc-nuget-uploader – GitHub Action
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-
 GitHub Action for uploading Business Central `.app` files as NuGet packages.
+A typical use case is the integration of 3rd party apps into own CI/CD or deployment pipelines, e.g. based on [AL-Go](https://github.com/microsoft/AL-Go/).
 
 This action is designed to be reused across repositories and GitHub organizations. It wraps a PowerShell script that builds NuGet packages using the Business Central Container Helper and pushes them to GitHub Packages or external NuGet feeds.
 
