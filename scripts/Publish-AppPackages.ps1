@@ -1,133 +1,139 @@
+<#
+ .SYNOPSIS
+     Builds each *.app once and then pushes the resulting .nupkg
+     to all feeds resolved from nuget-feed-map.json (or default GitHub feed).
+
+ .NOTES
+     Requires BcContainerHelper (pulled in via AL-Go helper).
+#>
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
 function DownloadHelperFile {
-    param(
-        [string] $url,
-        [string] $folder
-    )
+    param([string]$url, [string]$folder)
+    $ProgressPreference, $prev = 'SilentlyContinue', $ProgressPreference
     try {
-        $prevProgressPreference = $ProgressPreference
-        $ProgressPreference = 'SilentlyContinue'
-        $name = [System.IO.Path]::GetFileName($url)
-        Write-Host "Downloading $name from $url"
+        $name = Split-Path $url -Leaf
         $path = Join-Path $folder $name
-        Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $path
+        Invoke-WebRequest -Uri $url -OutFile $path -UseBasicParsing
         return $path
-    }
-    catch {
-        Write-Error "Failed to download file from $url. $_"
-        exit 1
-    }
-    finally {
-        $ProgressPreference = $prevProgressPreference
-    }
+    } finally { $ProgressPreference = $prev }
 }
 
-# Create a temporary folder for helper files
-$tmpFolder = Join-Path ([System.IO.Path]::GetTempPath()) ([Guid]::NewGuid().ToString())
-New-Item -Path $tmpFolder -ItemType Directory -Force | Out-Null
+function Write-SummaryLine {
+    param([string]$text) 
+    Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "$text`n"
+}
 
-# Download and import the AL-Go helper script
-$ALGoHelperPath = DownloadHelperFile -url 'https://raw.githubusercontent.com/microsoft/AL-Go-Actions/v7.2/AL-Go-Helper.ps1' -folder $tmpFolder
-. $ALGoHelperPath -local
+$tmp = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid())
+New-Item -ItemType Directory $tmp | Out-Null
+
+. (DownloadHelperFile -url 'https://raw.githubusercontent.com/microsoft/AL-Go-Actions/v7.2/AL-Go-Helper.ps1' -folder $tmp) -local
 DownloadAndImportBcContainerHelper
 
-# Load feed map from env var
-$rawFeedMapPath = [Environment]::GetEnvironmentVariable("FEED_MAP_PATH")
-$workspaceRoot  = [Environment]::GetEnvironmentVariable("GITHUB_WORKSPACE")
-
-# Resolve path relative to workspace, if needed
-if (-not [System.IO.Path]::IsPathRooted($rawFeedMapPath)) {
-    $feedMapPath = Join-Path -Path $workspaceRoot -ChildPath $rawFeedMapPath
-} else {
-    $feedMapPath = $rawFeedMapPath
+# read configuration
+$workspace = $env:GITHUB_WORKSPACE
+$feedMapPath = $env:FEED_MAP_PATH
+if (-not [IO.Path]::IsPathRooted($feedMapPath)) {
+    $feedMapPath = Join-Path $workspace $feedMapPath
 }
 
-$feeds = @{}
+$feedMap = @{}
 if (Test-Path $feedMapPath) {
-    Write-Host "Using feed map from $feedMapPath"
-    $feeds = Get-Content $feedMapPath | ConvertFrom-Json
-    Write-Host "Loaded feed map with $($feeds.Count) entries"
+    Write-Host "Using feed map: $feedMapPath"
+    $feedMap = Get-Content $feedMapPath | ConvertFrom-Json
 } else {
-    Write-Host "Feed map file not found at $feedMapPath. Using default GitHub feed"
+    Write-Host "No feed-map found -> all packages go to GitHub Packages"
 }
 
-# Find app files
-$appFiles = @(Get-ChildItem -Path "./upload" -Filter "*.app")
-if ($appFiles.Count -eq 0) {
-    Write-Host "No .app files found in ./upload folder."
+$defaultFeed = "https://nuget.pkg.github.com/$env:GITHUB_REPOSITORY_OWNER/index.json"
+
+# discover .app files
+$appFiles = Get-ChildItem -Path "$workspace/upload" -Filter '*.app' -File
+if (-not $appFiles) {
+    Write-Host "No .app files to process. Exiting."
     exit 0
 }
 
-# Process each .app file
-foreach ($file in $appFiles) {
-    $appfile = $file.FullName
-    Write-Host "🔄 Processing file: $appfile"
+# summary scaffolding
+"" | Set-Content $env:GITHUB_STEP_SUMMARY
+Write-SummaryLine "| Package | Version | Feed | Result |"
+Write-SummaryLine "|---------|---------|------|--------|"
+$overallFailure = $false
 
-    # Get metadata
-    $appJson = Get-AppJsonFromAppFile -appFile $appfile
-    $packageId = Get-BcNuGetPackageId -publisher $appJson.publisher -name $appJson.name -id $appJson.id
-    $packageVersion = $appJson.version
-    $guid = $appJson.id
+foreach ($app in $appFiles) {
+    Write-Host " Processing $($app.Name)"
+    $nupkg = New-BcNuGetPackage -appfile $app.FullName
+    Write-Host " Built: $nupkg"
 
-    # Default values
-    $targetFeed = "https://nuget.pkg.github.com/$env:GITHUB_REPOSITORY_OWNER/index.json"
-    $tokenName  = "GITHUB_TOKEN"
+    $meta       = Get-AppJsonFromAppFile -appFile $app.FullName
+    $guid       = $meta.id
+    $pkgId      = Get-BcNuGetPackageId -publisher $meta.publisher -name $meta.name -id $meta.id
+    $pkgVersion = $meta.version
 
-    # Check if override exists for this app ID
-    if ($feeds.PSObject.Properties.Name -contains $guid) {
-        $targetFeed = $feeds.$guid.url
-        $tokenName  = $feeds.$guid.token
-    }
+    # Resolve all feeds needed for this GUID
+    $destinations = @()
 
-    # Show resolved info
-    Write-Host "Package GUID: $guid"
-    Write-Host "Using token environment variable: $tokenName"
-    Write-Host "Upload target feed: $targetFeed"
-
-    # Get the actual token value
-    $token = [Environment]::GetEnvironmentVariable($tokenName)
-    if (-not $token) {
-        Write-Host "Token for GUID $guid (`$tokenName = $tokenName) is missing."
-        Write-Host "Available environment variables:"
-        Get-ChildItem Env:
-        throw "Token for GUID $guid (`$tokenName) is missing."
+    if ($feedMap.PSObject.Properties.Name -contains $guid) {
+        $d = $feedMap.$guid
+        $destinations += [pscustomobject]@{
+            Url       = $d.url
+            TokenName = $d.token
+        }
     } else {
-        Write-Host "Token found: $tokenName"
-        # Write-Host "Token length: $($token.Length)"
-    }
-
-    # Check if package already exists
-    try {
-        $existing = Get-BcNuGetPackage `
-            -nuGetServerUrl $targetFeed `
-            -nuGetToken $token `
-            -packageName $packageId `
-            -version $packageVersion `
-            -select 'Exact' `
-            -allowPrerelease
-
-        if ($existing -and (Test-Path $existing)) {
-            Write-Host "Package already exists: $packageId $packageVersion. Skipping upload"
-            continue
+        $destinations += [pscustomobject]@{
+            Url       = $defaultFeed
+            TokenName = 'GITHUB_TOKEN'
         }
     }
-    catch {
-        Write-Host "Exception while checking for existing package:"
-        Write-Host $_.Exception.Message
-        Write-Host $_.Exception.ToString()
-        Write-Host "Proceeding with upload..."
-    }
 
-    $nupkg = New-BcNuGetPackage -appfile $appfile
-    Write-Host "Created package: $nupkg"
+    # Deduplicate (in case two GUIDs share same feed+token)
+    $destinations = $destinations |
+        Sort-Object Url,TokenName -Unique
 
-    # Upload
-    Write-Host "Pushing package to $targetFeed"
-    try {
-        Push-BcNuGetPackage -nuGetServerUrl $targetFeed -nuGetToken $token -bcNuGetPackage $nupkg
-        Write-Host "Successfully pushed ${nupkg} to ${targetFeed}"
+    foreach ($dest in $destinations) {
+        $token = [Environment]::GetEnvironmentVariable($dest.TokenName)
+        if (-not $token) {
+            $msg = "Secret `${dest.TokenName} not set"
+            Write-Host $msg
+            Write-SummaryLine "| $pkgId | $pkgVersion | $($dest.Url) | secret missing |"
+            $overallFailure = $true
+            continue
+        }
+
+        try {
+            # Skip if already there
+            $exists = Get-BcNuGetPackage `
+                        -nuGetServerUrl $dest.Url `
+                        -nuGetToken      $token `
+                        -packageName     $pkgId `
+                        -version         $pkgVersion `
+                        -select 'Exact'  `
+                        -allowPrerelease
+
+            if ($exists) {
+                Write-Host "$pkgId $pkgVersion already exists on $($dest.Url)"
+                Write-SummaryLine "| $pkgId | $pkgVersion | $($dest.Url) | already exists |"
+                continue
+            }
+        } catch {
+            Write-Host "Could not query $($dest.Url) (continuing): $($_.Exception.Message)"
+        }
+
+        try {
+            Write-Host "Pushing to $($dest.Url)"
+            Push-BcNuGetPackage -bcNuGetPackage $nupkg -nuGetServerUrl $dest.Url -nuGetToken $token
+            Write-SummaryLine "| $pkgId | $pkgVersion | $($dest.Url) | uploaded |"
+        } catch {
+            Write-Host "Push failed: $($_.Exception.Message)"
+            Write-SummaryLine "| $pkgId | $pkgVersion | $($dest.Url) | failed |"
+            $overallFailure = $true
+        }
     }
-    catch {
-        Write-Error "Failed to push ${nupkg} to ${targetFeed}: $_"
-        throw $_
-    }
+}
+
+# final outcome
+if (($env:FAIL_ON_ANY_ERROR -eq 'true') -and $overallFailure) {
+    throw "One or more uploads failed and fail-on-any-error=true"
 }

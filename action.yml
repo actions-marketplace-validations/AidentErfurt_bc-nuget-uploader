@@ -1,27 +1,28 @@
-name: Upload BC .app Files to NuGet
-description: Process and push .app files in ./upload to NuGet
-
+name: Upload BC .app files to NuGet
+description: Build each .app once and push it to every matching NuGet feed
 inputs:
   feed-map:
-    description: Path to the feed map JSON file
+    description: Path to the feed-map JSON file (GUID -> {url, token-secret})
     required: false
     default: ./nuget-feed-map.json
+  fail-on-any-error:
+    description: |
+      true  -> the step fails if **any** push fails  
+      false -> the job succeeds even with partial uploads (see summary)
+    required: false
+    default: 'true'
 
 runs:
-  using: "composite"
+  using: composite
   steps:
-    - name: Upload Business Central .app files to NuGet
+    - name: Upload Business Central .app files
       shell: pwsh
       env:
         ACTION_PATH: ${{ github.action_path }}
         FEED_MAP_PATH: ${{ inputs.feed-map }}
-        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}
         GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        GITHUB_TOKEN: ${{ env.GITHUB_TOKEN }}   # default feed auth
+        FAIL_ON_ANY_ERROR: ${{ inputs.fail-on-any-error }}
       run: |
-        $scriptPath = Join-Path "$env:ACTION_PATH" "scripts/Publish-AppPackages.ps1"
-        if (-not (Test-Path $scriptPath)) {
-            Write-Error "Upload script not found at $scriptPath"
-            exit 1
-        }
-        Write-Host "Executing Publish-AppPackages.ps1 from $scriptPath"
+        $scriptPath = Join-Path $env:ACTION_PATH 'scripts/Publish-AppPackages.ps1'
         & $scriptPath
