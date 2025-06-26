@@ -1,5 +1,8 @@
 name: Upload BC .app files to NuGet
 description: Build each .app once and push it to every matching NuGet feed
+branding:
+  icon:  'package'
+  color: 'orange'
 inputs:
   feed-map:
     description: Path to the feed-map JSON file (GUID -> {url, token-secret})
