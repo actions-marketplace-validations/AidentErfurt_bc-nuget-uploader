@@ -22,8 +22,9 @@ function DownloadHelperFile {
 }
 
 function Write-SummaryLine {
-    param([string]$text) 
-    Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "$text`n"
+    param([string]$text)
+
+    Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $text
 }
 
 $tmp = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid())
