@@ -1,5 +1,7 @@
 # bc-nuget-uploader – GitHub Action
 
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 GitHub Action for uploading Business Central `.app` files as NuGet packages.
 A typical use case is the integration of 3rd party apps into own CI/CD or deployment pipelines, e.g. based on [AL-Go](https://github.com/microsoft/AL-Go/).
 
