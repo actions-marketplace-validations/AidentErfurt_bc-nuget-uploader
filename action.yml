@@ -1,4 +1,4 @@
-name: Upload BC .app files to NuGet
+name: Create & Push Business Central NuGet Packages
 description: Build each .app once and push it to every matching NuGet feed
 branding:
   icon:  'package'
