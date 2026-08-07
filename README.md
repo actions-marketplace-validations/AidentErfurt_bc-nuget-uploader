@@ -28,6 +28,7 @@ on:
     branches: [main]
     paths:
       - 'upload/*.app'
+      - 'upload/**/*.app'
   workflow_dispatch:
 
 permissions:
