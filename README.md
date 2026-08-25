@@ -28,6 +28,7 @@ on:
     branches: [main]
     paths:
       - 'upload/*.app'
+      - 'upload/**/*.app'
   workflow_dispatch:
 
 permissions:
@@ -42,7 +43,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Business Central NuGet uploader
-        uses: AidentErfurt/bc-nuget-uploader@v1
+        uses: ACSG-BizApps/bc-nuget-uploader@v1
         with:
           feed-map: nuget-feed-map.json
           fail-on-any-error: true
@@ -77,7 +78,7 @@ Multiple feeds for one app:
         "token": "MY_NUGET_FEED_TOKEN"
       },
       {
-        "url": "https://nuget.pkg.github.com/AidentErfurt/index.json",
+        "url": "https://nuget.pkg.github.com/ACSG-BizApps/index.json",
         "token": "GITHUB_TOKEN"
       }
     ]
